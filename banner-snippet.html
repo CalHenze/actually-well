@@ -16,7 +16,7 @@
 <script>
 (function(){
   if(sessionStorage.getItem('aw-dismissed')==='1') return;
-  var FEED='https://cdn.jsdelivr.net/gh/CalHenze/actually-well@main/feed.json';
+  var FEED='https://cdn.jsdelivr.net/gh/CalHenze/actually-well@c0cff75/feed.json';
   fetch(FEED+'?_='+Math.floor(Date.now()/300000))
     .then(function(r){return r.json();})
     .then(function(d){
