@@ -25,12 +25,17 @@ jobs:
           # Fetch RSS feed
           RSS=$(curl -sL "$RSS_URL")
 
-          # Extract latest video ID and title
+          # Extract latest video ID, title, and description
           VIDEO_ID=$(echo "$RSS" | grep -o '<yt:videoId>[^<]*</yt:videoId>' | head -1 | sed 's/<[^>]*>//g')
           VIDEO_TITLE=$(echo "$RSS" | grep -o '<title>[^<]*</title>' | sed -n '2p' | sed 's/<[^>]*>//g')
+          VIDEO_DESC=$(echo "$RSS" | grep -o '<media:description>[^<]*</media:description>' | head -1 | sed 's/<[^>]*>//g' | cut -c1-300)
 
           echo "video_id=$VIDEO_ID" >> $GITHUB_OUTPUT
           echo "video_title=$VIDEO_TITLE" >> $GITHUB_OUTPUT
+          # Use delimiter to handle multi-line description
+          echo "video_desc<<EOF_DESC" >> $GITHUB_OUTPUT
+          echo "$VIDEO_DESC" >> $GITHUB_OUTPUT
+          echo "EOF_DESC" >> $GITHUB_OUTPUT
 
       - name: Update feed.json (latest only, never overwrites featured)
         run: |
@@ -59,6 +64,7 @@ jobs:
 
           data['latest'] = '${{ steps.fetch.outputs.video_id }}'
           data['latestTitle'] = '${{ steps.fetch.outputs.video_title }}'
+          data['latestDescription'] = '${{ steps.fetch.outputs.video_desc }}'
 
           with open('feed.json', 'w') as f:
               json.dump(data, f, indent=2)
