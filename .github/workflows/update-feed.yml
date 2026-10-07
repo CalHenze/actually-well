@@ -64,6 +64,10 @@ jobs:
               json.dump(data, f, indent=2)
               f.write('\n')
 
+          # Also write feed.js for JSONP delivery
+          with open('feed.js', 'w') as f:
+              f.write('window._awFeed(' + json.dumps(data, separators=(',',':')) + ');\n')
+
           print(f"Updated latest to: {data['latest']}")
           PYEOF
 
@@ -71,7 +75,7 @@ jobs:
         run: |
           git config user.name "Actually Well Bot"
           git config user.email "actions@github.com"
-          git add feed.json
+          git add feed.json feed.js
           if git diff --staged --quiet; then
             echo "Nothing to commit."
           else

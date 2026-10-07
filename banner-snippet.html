@@ -16,28 +16,27 @@
 <script>
 (function(){
   if(sessionStorage.getItem('aw-dismissed')==='1') return;
-  var FEED='https://cdn.jsdelivr.net/gh/CalHenze/actually-well@main/feed.json';
-  fetch(FEED+'?_='+Math.floor(Date.now()/300000))
-    .then(function(r){return r.json();})
-    .then(function(d){
-      var live=d.live;
-      if(!live && d.launchDate){live=new Date()>=new Date(d.launchDate);}
-      if(!live) return;
-      var vid=d.featured||d.latest;
-      if(vid){
-        var thumbEl=document.getElementById('aw-thumb');
-        var thumbLink=document.getElementById('aw-thumb-link');
-        var titleLink=document.getElementById('aw-title-link');
-        var videoUrl='https://www.youtube.com/watch?v='+vid;
-        thumbEl.src='https://img.youtube.com/vi/'+vid+'/mqdefault.jpg';
-        thumbLink.href=videoUrl;
-        titleLink.href=videoUrl;
-        var epTitle = d.featured ? d.featuredTitle : d.latestTitle;
-        if(epTitle){ titleLink.textContent = epTitle; }
-      }
-      document.getElementById('aw-banner').style.display='block';
-    })
-    .catch(function(){});
+  window._awFeed = function(d){
+    var live = d.live;
+    if(!live && d.launchDate){ live = new Date() >= new Date(d.launchDate); }
+    if(!live) return;
+    var vid = d.featured || d.latest;
+    if(vid){
+      var thumbEl   = document.getElementById('aw-thumb');
+      var thumbLink = document.getElementById('aw-thumb-link');
+      var titleLink = document.getElementById('aw-title-link');
+      var videoUrl  = 'https://www.youtube.com/watch?v=' + vid;
+      thumbEl.src       = 'https://img.youtube.com/vi/' + vid + '/mqdefault.jpg';
+      thumbLink.href    = videoUrl;
+      titleLink.href    = videoUrl;
+      var epTitle = d.featured ? d.featuredTitle : d.latestTitle;
+      if(epTitle){ titleLink.textContent = epTitle; }
+    }
+    document.getElementById('aw-banner').style.display = 'block';
+  };
+  var s = document.createElement('script');
+  s.src = 'https://raw.githubusercontent.com/CalHenze/actually-well/main/feed.js?_=' + Math.floor(Date.now() / 300000);
+  document.head.appendChild(s);
 })();
 </script>
 <!-- End Actually Well Channel Banner -->
