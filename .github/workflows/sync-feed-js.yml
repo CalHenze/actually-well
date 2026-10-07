@@ -1,0 +1,36 @@
+name: Sync feed.js
+
+on:
+  push:
+    paths:
+      - feed.json
+
+jobs:
+  sync:
+    runs-on: ubuntu-latest
+    permissions:
+      contents: write
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Regenerate feed.js from feed.json
+        run: |
+          python3 -c "
+          import json
+          d = json.load(open('feed.json'))
+          open('feed.js','w').write('window._awFeed(' + json.dumps(d, separators=(',',':')) + ');\n')
+          print('feed.js regenerated')
+          "
+
+      - name: Commit and push feed.js
+        run: |
+          git config user.name "Actually Well Bot"
+          git config user.email "actions@github.com"
+          git add feed.js
+          if git diff --staged --quiet; then
+            echo "feed.js unchanged."
+          else
+            git commit -m "Auto-sync: regenerate feed.js from feed.json"
+            git push
+          fi
