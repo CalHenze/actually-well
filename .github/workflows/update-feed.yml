@@ -1,0 +1,80 @@
+name: Update Actually Well Feed
+
+on:
+  schedule:
+    # Runs every 2 hours
+    - cron: '0 */2 * * *'
+  workflow_dispatch:
+
+jobs:
+  update-feed:
+    runs-on: ubuntu-latest
+    permissions:
+      contents: write
+
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+
+      - name: Fetch latest video from YouTube RSS
+        id: fetch
+        run: |
+          CHANNEL_ID="UCsT91pIhTKStm65nTWBt_0Q"
+          RSS_URL="https://www.youtube.com/feeds/videos.xml?channel_id=${CHANNEL_ID}"
+
+          # Fetch RSS feed
+          RSS=$(curl -sL "$RSS_URL")
+
+          # Extract latest video ID and title
+          VIDEO_ID=$(echo "$RSS" | grep -o '<yt:videoId>[^<]*</yt:videoId>' | head -1 | sed 's/<[^>]*>//g')
+          VIDEO_TITLE=$(echo "$RSS" | grep -o '<title>[^<]*</title>' | sed -n '2p' | sed 's/<[^>]*>//g')
+
+          echo "video_id=$VIDEO_ID" >> $GITHUB_OUTPUT
+          echo "video_title=$VIDEO_TITLE" >> $GITHUB_OUTPUT
+
+      - name: Update feed.json (latest only, never overwrites featured)
+        run: |
+          VIDEO_ID="${{ steps.fetch.outputs.video_id }}"
+          VIDEO_TITLE="${{ steps.fetch.outputs.video_title }}"
+
+          if [ -z "$VIDEO_ID" ]; then
+            echo "No video ID found — skipping update."
+            exit 0
+          fi
+
+          # Read current feed.json
+          CURRENT_LATEST=$(python3 -c "import json; d=json.load(open('feed.json')); print(d.get('latest') or '')")
+
+          if [ "$VIDEO_ID" = "$CURRENT_LATEST" ]; then
+            echo "Latest video unchanged ($VIDEO_ID) — no update needed."
+            exit 0
+          fi
+
+          # Update only the 'latest' and 'latestTitle' fields — never touch 'featured'
+          python3 - <<'PYEOF'
+          import json, sys
+
+          with open('feed.json', 'r') as f:
+              data = json.load(f)
+
+          data['latest'] = '${{ steps.fetch.outputs.video_id }}'
+          data['latestTitle'] = '${{ steps.fetch.outputs.video_title }}'
+
+          with open('feed.json', 'w') as f:
+              json.dump(data, f, indent=2)
+              f.write('\n')
+
+          print(f"Updated latest to: {data['latest']}")
+          PYEOF
+
+      - name: Commit and push if changed
+        run: |
+          git config user.name "Actually Well Bot"
+          git config user.email "actions@github.com"
+          git add feed.json
+          if git diff --staged --quiet; then
+            echo "Nothing to commit."
+          else
+            git commit -m "Auto-update: latest video from YouTube RSS"
+            git push
+          fi

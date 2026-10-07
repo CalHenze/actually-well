@@ -1,0 +1,43 @@
+<!-- Actually Well Channel Banner — https://github.com/CalHenze/actually-well -->
+<div id="aw-banner" style="display:none;position:fixed;bottom:0;left:0;right:0;z-index:9999;font-family:sans-serif;background:#111;border-top:3px solid #e63329;box-shadow:0 -2px 16px rgba(0,0,0,.5);">
+  <div style="max-width:1100px;margin:0 auto;display:flex;align-items:center;gap:16px;padding:10px 16px;position:relative;">
+    <a id="aw-thumb-link" href="https://www.youtube.com/@Actually-Well" target="_blank" rel="noopener" style="flex-shrink:0;display:block;line-height:0;">
+      <img id="aw-thumb" src="" alt="Actually Well — latest episode" style="width:120px;height:68px;object-fit:cover;border-radius:3px;border:2px solid #e63329;background:#222;">
+    </a>
+    <div style="flex:1;min-width:0;">
+      <div style="color:#e63329;font-size:11px;font-weight:700;letter-spacing:.08em;text-transform:uppercase;margin-bottom:2px;">Now on YouTube</div>
+      <a id="aw-title-link" href="https://www.youtube.com/@Actually-Well" target="_blank" rel="noopener" style="color:#fff;font-size:15px;font-weight:600;text-decoration:none;display:block;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;" id="aw-video-title">Actually Well with Cal &amp; Dr. Jeffy</a>
+      <a href="https://www.youtube.com/@Actually-Well" target="_blank" rel="noopener" style="color:#aaa;font-size:12px;text-decoration:none;margin-top:2px;display:inline-block;">@Actually-Well &rarr; Subscribe</a>
+    </div>
+    <button onclick="document.getElementById('aw-banner').style.display='none';sessionStorage.setItem('aw-dismissed','1');" style="background:none;border:none;color:#888;font-size:22px;cursor:pointer;padding:4px 8px;line-height:1;flex-shrink:0;" title="Dismiss">&times;</button>
+  </div>
+</div>
+<script>
+(function(){
+  if(sessionStorage.getItem('aw-dismissed')==='1') return;
+  var FEED='https://cdn.jsdelivr.net/gh/CalHenze/actually-well@main/feed.json';
+  fetch(FEED+'?_='+Math.floor(Date.now()/300000))
+    .then(function(r){return r.json();})
+    .then(function(d){
+      var live=d.live;
+      if(!live && d.launchDate){live=new Date()>=new Date(d.launchDate);}
+      if(!live) return;
+      var vid=d.featured||d.latest;
+      if(vid){
+        var thumbEl=document.getElementById('aw-thumb');
+        var thumbLink=document.getElementById('aw-thumb-link');
+        var titleLink=document.getElementById('aw-title-link');
+        var videoUrl='https://www.youtube.com/watch?v='+vid;
+        thumbEl.src='https://img.youtube.com/vi/'+vid+'/mqdefault.jpg';
+        thumbLink.href=videoUrl;
+        titleLink.href=videoUrl;
+        if(d.featured?d.featuredTitle:d.latestTitle){
+          titleLink.textContent=(d.featured?d.featuredTitle:d.latestTitle)||'Actually Well with Cal & Dr. Jeffy';
+        }
+      }
+      document.getElementById('aw-banner').style.display='block';
+    })
+    .catch(function(){});
+})();
+</script>
+<!-- End Actually Well Channel Banner -->
