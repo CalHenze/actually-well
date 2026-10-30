@@ -22,7 +22,7 @@ jobs:
 
     steps:
       - name: Checkout repository
-        uses: actions/checkout@v4
+        uses: actions/checkout@v5
 
       - name: Build videos.json from the YouTube RSS feed
         env:
@@ -116,6 +116,12 @@ jobs:
 
       - name: Commit and push if changed
         run: |
+          # Until the channel has public videos, YouTube's feed can answer "not found",
+          # so there may be no list to save yet. That isn't a failure.
+          if [ ! -f videos.json ]; then
+            echo "No video list yet: YouTube's feed had nothing to give."
+            exit 0
+          fi
           git config user.name "Actually Well Bot"
           git config user.email "actions@github.com"
           git add videos.json
