@@ -1,0 +1,132 @@
+name: Update Actually Well video list
+
+# Builds videos.json: the newest uploads from the Actually Well YouTube channel, for the
+# video feed on actuallywell.ca. Separate from the banner feed: it never reads or writes
+# feed.json or feed.js, and the banner's workflows never touch videos.json.
+
+on:
+  schedule:
+    # Every hour at :23, away from the banner workflow's top-of-the-hour runs
+    - cron: '23 * * * *'
+  workflow_dispatch:
+
+concurrency:
+  group: aw-video-list
+  cancel-in-progress: false
+
+jobs:
+  update-videos:
+    runs-on: ubuntu-latest
+    permissions:
+      contents: write
+
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+
+      - name: Build videos.json from the YouTube RSS feed
+        env:
+          CHANNEL_ID: UCsT91pIhTKStm65nTWBt_0Q
+          CHANNEL_URL: https://www.youtube.com/@Actually-Well
+          MAX_VIDEOS: '10'
+          # 'false' leaves Shorts out of the list; 'true' includes them
+          INCLUDE_SHORTS: 'false'
+        run: |
+          python3 - <<'PYEOF'
+          import datetime, json, os, sys, time, urllib.request
+          import xml.etree.ElementTree as ET
+
+          ch = os.environ['CHANNEL_ID']
+          limit = int(os.environ.get('MAX_VIDEOS', '10'))
+          shorts = os.environ.get('INCLUDE_SHORTS', 'false').lower() == 'true'
+          url = 'https://www.youtube.com/feeds/videos.xml?channel_id=' + ch
+          ns = {'a': 'http://www.w3.org/2005/Atom',
+                'yt': 'http://www.youtube.com/xml/schemas/2015',
+                'media': 'http://search.yahoo.com/mrss/'}
+
+          # YouTube's feed sometimes answers 404 for a moment, so try a few times.
+          # A failed or garbled fetch keeps the last good list rather than emptying the page.
+          root, err = None, None
+          for attempt in range(4):
+              try:
+                  req = urllib.request.Request(url, headers={'User-Agent': 'Mozilla/5.0 (Actually Well video list)'})
+                  with urllib.request.urlopen(req, timeout=30) as r:
+                      root = ET.fromstring(r.read())
+                  break
+              except Exception as e:
+                  err = e
+                  time.sleep(5 * (attempt + 1))
+          if root is None:
+              print('Could not read the YouTube feed, keeping the current list:', err)
+              sys.exit(0)
+
+          videos = []
+          for e in root.findall('a:entry', ns):
+              vid = (e.findtext('yt:videoId', default='', namespaces=ns) or '').strip()
+              if not vid:
+                  continue
+              link = e.find("a:link[@rel='alternate']", ns)
+              href = link.get('href', '') if link is not None else ''
+              is_short = '/shorts/' in href
+              if is_short and not shorts:
+                  continue
+              desc = ' '.join((e.findtext('media:group/media:description', default='', namespaces=ns) or '').split())
+              if len(desc) > 280:
+                  cut = desc[:277]
+                  sp = cut.rfind(' ')
+                  desc = (cut[:sp] if sp > 200 else cut) + '...'
+              videos.append({
+                  'id': vid,
+                  'title': (e.findtext('a:title', default='', namespaces=ns) or '').strip(),
+                  'published': e.findtext('a:published', default='', namespaces=ns),
+                  'description': desc,
+                  'url': 'https://www.youtube.com/watch?v=' + vid,
+                  'thumbnail': 'https://i.ytimg.com/vi/' + vid + '/hqdefault.jpg',
+                  'short': is_short,
+              })
+              if len(videos) >= limit:
+                  break
+
+          try:
+              with open('videos.json') as f:
+                  old = json.load(f)
+          except Exception:
+              old = {}
+          old_videos = old.get('videos') or []
+
+          # An empty answer when there were videos before is treated as a YouTube hiccup
+          if not videos and old_videos:
+              print('Feed came back empty; keeping the current list of', len(old_videos))
+              sys.exit(0)
+          if videos == old_videos and old.get('channelId') == ch:
+              print('Video list unchanged (' + str(len(videos)) + ' videos).')
+              sys.exit(0)
+
+          data = {
+              'updated': datetime.datetime.now(datetime.timezone.utc).strftime('%Y-%m-%dT%H:%M:%SZ'),
+              'channelId': ch,
+              'channelUrl': os.environ.get('CHANNEL_URL', ''),
+              'videos': videos,
+          }
+          with open('videos.json', 'w') as f:
+              json.dump(data, f, indent=2, ensure_ascii=False)
+              f.write('\n')
+          print('videos.json now lists', len(videos), 'videos.')
+          PYEOF
+
+      - name: Commit and push if changed
+        run: |
+          git config user.name "Actually Well Bot"
+          git config user.email "actions@github.com"
+          git add videos.json
+          if git diff --staged --quiet; then
+            echo "Nothing to commit."
+            exit 0
+          fi
+          git commit -m "Auto-update: video list from YouTube RSS"
+          # The banner workflow also pushes to main, so retry on a race
+          for i in 1 2 3; do
+            git pull --rebase && git push && exit 0
+            sleep 10
+          done
+          exit 1
